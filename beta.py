@@ -115,5 +115,5 @@ async def on_command_error(ctx, error):
 
 
 
-
+# 봇 토큰 입력.
 bot.run('Token')
