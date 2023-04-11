@@ -260,7 +260,7 @@ async def 날씨_error(ctx, error):
 @bot.command()
 async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
     embed=discord.Embed(title="부산 버스 검색이에요!")
-    embed.add_field(name="명령어 사용법 : !정류장 (정류장 번호)",value="입력한 (정류장 번호)의 실시간 도착 정보를 알려드릴게요!")
+    embed.add_field(name="!정류장 (정류장 번호)",value="입력한 정류장 번호의 실시간 도착 정보를 알려드릴게요!")
 
     # 1. 버스 번호 -> 노선 ID 구하기.
     url = 'http://apis.data.go.kr/6260000/BusanBIMS/busInfo'
@@ -276,13 +276,12 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
     busan_bus = busan_busStop_dict['response']['body']['items']['item']
     row = {'a'}
     busan_list = [busan_bus, row]
-
     
-    try:
+    try: # 버스가 한 대 검색되면,
         for busan_bus_i in busan_list:
             if busan_busNo_input == busan_bus_i['buslinenum']:
                 busan_busId = busan_bus_i['lineid']
-    except TypeError:
+    except TypeError: #버스가 여러 대 검색되면,
         try:
             for busan_bus_j in busan_busStop_dict['response']['body']['items']['item']:
                 if busan_busNo_input == busan_bus_j['buslinenum']:
@@ -299,6 +298,7 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
     busan_busId_contents = busan_busId_response.text
     busan_busId_jsonStr = json.dumps(xmltodict.parse(busan_busId_contents))
     busan_busId_dict = json.loads(busan_busId_jsonStr)
+
     i = 1 # 다음 정류소 ID를 가져오기 위해 사용.
     busan_index = 1 # 딕셔너리 index.
     isOkay = False # 원하는 정류소이면 다음 정류소의 정보를 가져옴.
@@ -330,43 +330,79 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
         bot.remove_command('정류장')
 
     else:
-        @bot.command()
-        async def 정류장(ctx, busan_busStopId):
-            try:
-                embed_2=discord.Embed(title="찾으시는 정류장의 정보예요!", timestamp=datetime.datetime.now(pytz.timezone('UTC')))
-                embed_2.add_field
-                # 원하는 키 값을 찾기 위해 사용.
-                busan_target_key = list(busan_bus_dict.keys())[int(busan_busStopId) - 1]
-                # 키 값을 이용해 원하는 정류소 1개의 정류소 ID.
-                busan_select_busStopId = busan_bus_dict.get(busan_target_key)[1]
-                # 3. 원하는 정류소 ID -> 실시간 정류소 정보 구하기.
-                url = 'https://apis.data.go.kr/6260000/BusanBIMS/stopArrByBstopid'
-                params = {'serviceKey' : 'cVAZvoe8Fo5X0jPOaI/iwkosf10ajo5M1M9smdhCik7esMTsHmgEnJnz+wNPRiQYj8uCB4TDtMsE9OBXu79gsA==',
-                        'bstopid' : busan_select_busStopId
-                        }
-                busan_busStopId_response = requests.get(url, params=params)
-                busan_busStopId_contents = busan_busStopId_response.text
-                busan_busStopId_jsonStr = json.dumps(xmltodict.parse(busan_busStopId_contents))
-                busan_busStopId_dict = json.loads(busan_busStopId_jsonStr)
-                for busan_wantBusStop in busan_busStopId_dict['response']['body']['items']['item']:
-                    # 원하는 딕셔너리 번호의 정보가 있으면,
-                    if busan_busNo_input == busan_wantBusStop['lineno']:
-                        embed_2.add_field(name="버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
-                        embed_2.add_field(name="다음 정류장", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
-                        embed_2.add_field(name="버스 번호", value=f"{busan_wantBusStop['lineno']}", inline=False)
-                        embed_2.add_field(name="버스 종류", value=f"{busan_wantBusStop['bustype']}", inline=False)
-                        try:
-                            embed_2.add_field(name="도착 예정 시간", value=f"{busan_wantBusStop['min1']} 분 남음", inline=False)
-                            embed_2.add_field(name="남은 정류장 수", value=f"{busan_wantBusStop['station1']} 개 남음", inline=False)
-                            await ctx.channel.send(embed=embed_2)
-                            bot.remove_command('정류장')
-                        except:
-                            await ctx.channel.send("현재 버스가 운행 대기 중이예요...")
-                            bot.remove_command('정류장')
-            except:
-                await ctx.channel.send("정류장 번호를 잘못 입력하신 것 같아요...")
-            
         await ctx.channel.send(embed=embed)
+
+        try:
+            @bot.command()
+            async def 정류장(ctx, busan_busStopId): # 정류장 (정류장 번호) : 명령어로 버스의 실시간 정류장 도착 정보 찾기.
+                try:
+                    embed_2=discord.Embed(title="찾으시는 정류장의 정보예요!", timestamp=datetime.datetime.now(pytz.timezone('UTC')))
+                    # 원하는 키 값을 찾기 위해 사용.
+                    busan_target_key = list(busan_bus_dict.keys())[int(busan_busStopId) - 1]
+                    # 키 값을 이용해 원하는 정류소 1개의 정류소 ID.
+                    busan_select_busStopId = busan_bus_dict.get(busan_target_key)[1]
+                    # 3. 원하는 정류소 ID -> 실시간 정류소 정보 구하기.
+                    url = 'https://apis.data.go.kr/6260000/BusanBIMS/stopArrByBstopid'
+                    params = {'serviceKey' : 'cVAZvoe8Fo5X0jPOaI/iwkosf10ajo5M1M9smdhCik7esMTsHmgEnJnz+wNPRiQYj8uCB4TDtMsE9OBXu79gsA==',
+                            'bstopid' : busan_select_busStopId
+                            }
+                    busan_busStopId_response = requests.get(url, params=params)
+                    busan_busStopId_contents = busan_busStopId_response.text
+                    busan_busStopId_jsonStr = json.dumps(xmltodict.parse(busan_busStopId_contents))
+                    busan_busStopId_dict = json.loads(busan_busStopId_jsonStr)
+                    for busan_wantBusStop in busan_busStopId_dict['response']['body']['items']['item']:
+                        # 원하는 딕셔너리 번호의 정보가 있으면,
+                        if busan_busNo_input == busan_wantBusStop['lineno']:
+                            embed_2.add_field(name="버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
+                            embed_2.add_field(name="다음 정류장", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
+                            embed_2.add_field(name="버스 번호", value=f"{busan_wantBusStop['lineno']}", inline=False)
+                            embed_2.add_field(name="버스 종류", value=f"{busan_wantBusStop['bustype']}", inline=False)
+                            try:
+                                embed_2.add_field(name="도착 예정 시간", value=f"{busan_wantBusStop['min1']} 분 남음", inline=False)
+                                embed_2.add_field(name="남은 정류장 수", value=f"{busan_wantBusStop['station1']} 개 남음", inline=False)
+                                await ctx.channel.send(embed=embed_2)
+                                bot.remove_command('정류장')
+                            except:
+                                await ctx.channel.send("현재 버스가 운행 대기 중이예요...")
+                                bot.remove_command('정류장')
+                except:
+                    await ctx.channel.send("정류장 번호를 잘못 입력하신 것 같아요...")
+        except:
+            bot.remove_command('정류장')
+
+            @bot.command()
+            async def 정류장(ctx, busan_busStopId): # 정류장 (정류장 번호) : 명령어로 버스의 실시간 정류장 도착 정보 찾기.
+                try:
+                    embed_2=discord.Embed(title="찾으시는 정류장의 정보예요!", timestamp=datetime.datetime.now(pytz.timezone('UTC')))
+                    # 원하는 키 값을 찾기 위해 사용.
+                    busan_target_key = list(busan_bus_dict.keys())[int(busan_busStopId) - 1]
+                    # 키 값을 이용해 원하는 정류소 1개의 정류소 ID.
+                    busan_select_busStopId = busan_bus_dict.get(busan_target_key)[1]
+                    # 3. 원하는 정류소 ID -> 실시간 정류소 정보 구하기.
+                    url = 'https://apis.data.go.kr/6260000/BusanBIMS/stopArrByBstopid'
+                    params = {'serviceKey' : 'cVAZvoe8Fo5X0jPOaI/iwkosf10ajo5M1M9smdhCik7esMTsHmgEnJnz+wNPRiQYj8uCB4TDtMsE9OBXu79gsA==',
+                            'bstopid' : busan_select_busStopId
+                            }
+                    busan_busStopId_response = requests.get(url, params=params)
+                    busan_busStopId_contents = busan_busStopId_response.text
+                    busan_busStopId_jsonStr = json.dumps(xmltodict.parse(busan_busStopId_contents))
+                    busan_busStopId_dict = json.loads(busan_busStopId_jsonStr)
+                    for busan_wantBusStop in busan_busStopId_dict['response']['body']['items']['item']:
+                        # 원하는 딕셔너리 번호의 정보가 있으면,
+                        if busan_busNo_input == busan_wantBusStop['lineno']:
+                            embed_2.add_field(name="버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
+                            embed_2.add_field(name="다음 정류장", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
+                            embed_2.add_field(name="버스 번호", value=f"{busan_wantBusStop['lineno']}", inline=False)
+                            embed_2.add_field(name="버스 종류", value=f"{busan_wantBusStop['bustype']}", inline=False)
+                            try:
+                                embed_2.add_field(name="도착 예정 시간", value=f"{busan_wantBusStop['min1']} 분 남음", inline=False)
+                                embed_2.add_field(name="남은 정류장 수", value=f"{busan_wantBusStop['station1']} 개 남음", inline=False)
+                                await ctx.channel.send(embed=embed_2)
+                                bot.remove_command('정류장')
+                            except:
+                                await ctx.channel.send("현재 버스가 운행 대기 중이예요...")
+                except:
+                    await ctx.channel.send("정류장 번호를 잘못 입력하신 것 같아요...")
 
 
 
