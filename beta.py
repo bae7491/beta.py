@@ -404,6 +404,10 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
                 except:
                     await ctx.channel.send("정류장 번호를 잘못 입력하신 것 같아요...")
 
+@부산버스.error
+async def 부산버스_error(ctx, error):
+    await ctx.channel.send("!부산버스 (버스 번호) (정류장) 명령어를 잘못 입력한 것 같아요...")
+
 
 
 # 나머지 입력 시.
