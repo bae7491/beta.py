@@ -7,15 +7,35 @@ from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 import urllib.request
+import time
 
 # embed에 현재 시간 출력을 위해 import.
 import datetime
 import pytz
 
+
+
 # 부산 버스 검색을 위해 import.
 import requests
 import json
 import xmltodict
+
+
+
+# 양산 버스 검색을 위한 import.
+# selenium과 chrome_driver.
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service as ChromeService
+
+# CSS_SELECTOR, XPATH 등을 사용하기 위해.
+from selenium.webdriver.common.by import By
+
+# selenium에서 리스트를 클릭하기 위해.
+from selenium.webdriver.support.select import Select
+
+
+
 
 import numpy
 import discord
@@ -48,9 +68,11 @@ async def 도움(ctx):
     embed.add_field(name="이모티콘 출력", value="```이모티콘을 사용하면 확대해서 보여드릴게요!```", inline=True)
     embed.add_field(name="!로또 (숫자)", value="```입력한 (숫자)만큼의 로또 번호알려드려요!```", inline=True)
     embed.add_field(name="!메이플 (닉네임)", value="```메이플 월드의 유저를 찾아드려요!```", inline=True)
-    embed.add_field(name="!날씨 (도시이름)", value="```입력한 도시의 현재 날씨를 검색해드려요!```", inline=True)
+    embed.add_field(name="!날씨 (도시이름)", value="```입력한 도시의 현재 날씨를 검색해드려요!```")
     embed.add_field(name="!부산버스 (버스 번호) (정류장 이름)", value="```부산의 원하는 (버스 번호)가 정차하는 (정류장 이름)이 있는지 찾아드려요!```", inline=True)
-    embed.add_field(name="부산버스 명령어 이후 -> !정류장 (숫자)", value="```!부산버스 명령어로 찾은 정류장의 번호를 입력하면 버스가 언제 도착하는지 정보를 알려드려요!")
+    embed.add_field(name="부산버스 명령어 이후 -> !정류장 (숫자)", value="```!부산버스 명령어로 찾은 정류장의 번호를 입력하면 버스가 언제 도착하는지 정보를 알려드려요!```")
+    embed.add_field(name="!양산버스 (버스 번호) (정류장 이름)", value="```양산의 원하는 (버스 번호)가 정차하는 (정류장 이름)이 있는지 찾아드려요!```", inline=True)
+    embed.add_field(name="양산버스 명령어 이후 -> !정류장 (숫자)", value="```!양산버스 명령어로 찾은 정류장의 번호를 입력하면 버스가 언제 도착하는지 정보를 알려드려요!```")
     await ctx.channel.send(embed=embed)
 
 
@@ -353,8 +375,8 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
                     for busan_wantBusStop in busan_busStopId_dict['response']['body']['items']['item']:
                         # 원하는 딕셔너리 번호의 정보가 있으면,
                         if busan_busNo_input == busan_wantBusStop['lineno']:
-                            embed_2.add_field(name="버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
-                            embed_2.add_field(name="다음 정류장", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
+                            embed_2.add_field(name="찾는 버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
+                            embed_2.add_field(name="다음 버스 정류장 이름", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
                             embed_2.add_field(name="버스 번호", value=f"{busan_wantBusStop['lineno']}", inline=False)
                             embed_2.add_field(name="버스 종류", value=f"{busan_wantBusStop['bustype']}", inline=False)
                             try:
@@ -390,8 +412,8 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
                     for busan_wantBusStop in busan_busStopId_dict['response']['body']['items']['item']:
                         # 원하는 딕셔너리 번호의 정보가 있으면,
                         if busan_busNo_input == busan_wantBusStop['lineno']:
-                            embed_2.add_field(name="버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
-                            embed_2.add_field(name="다음 정류장", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
+                            embed_2.add_field(name="찾는 버스 정류장 이름",value=f"{busan_wantBusStop['nodenm']}", inline=False)
+                            embed_2.add_field(name="다음 버스 정류장 이름", value=f"{busan_bus_dict.get(busan_target_key)[2]}", inline=False)
                             embed_2.add_field(name="버스 번호", value=f"{busan_wantBusStop['lineno']}", inline=False)
                             embed_2.add_field(name="버스 종류", value=f"{busan_wantBusStop['bustype']}", inline=False)
                             try:
@@ -407,6 +429,142 @@ async def 부산버스(ctx, busan_busNo_input, busan_busStop_input):
 @부산버스.error
 async def 부산버스_error(ctx, error):
     await ctx.channel.send("!부산버스 (버스 번호) (정류장) 명령어를 잘못 입력한 것 같아요...")
+
+
+
+# 양산 버스 검색. (셀레니움 크롤링 사용.)
+@bot.command()
+async def 양산버스(ctx, yangsan_busNo_input, yangsan_busStop_input):
+    embed=discord.Embed(title="양산 버스 검색이에요!")
+    embed.add_field(name="!정류장 (정류장 번호)",value="입력한 정류장 번호의 실시간 도착 정보를 알려드릴게요!")
+
+    # 자동 꺼짐 방지, 시스템에 부착된 장치가 작동하지 않습니다 에러 방지 옵션 추가.
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"]) #시스템에 부착된 장치가 작동하지 않습니다 에러 방지.
+    options.add_experimental_option("detach", True) # 자동 꺼짐 방지.
+    options.add_argument("headless")
+
+    # chrome_driver
+    global yangsan_bus_driver
+    yangsan_bus_driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
+    # 양산시 BIS 노선 검색 가져오기.
+    url = 'http://bus.yangsan.go.kr/yangsan_2016/bus_map/map.php?m_num=2#none'
+    yangsan_bus_driver.get(url)
+    yangsan_bus_driver.implicitly_wait(0.1)
+
+    # 리스트에서 버스 검색.
+    select = Select(yangsan_bus_driver.find_element(By.XPATH, '//*[@id="line_num"]'))
+    try:
+        select.select_by_value(yangsan_busNo_input)
+    except:
+        await ctx.channel.send('!양산버스 (버스 번호) (정류장) 명령어를 잘못 입력한 것 같아요...')
+        # chrome driver 종료. (창 끄기.)
+        yangsan_bus_driver.quit()
+    yangsan_bus_driver.implicitly_wait(0.1)
+
+    # 리스트에 넣은 버스로 검색 버튼 클릭.
+    yangsan_bus_driver.find_element(By.CSS_SELECTOR, '#container > div.side > div:nth-child(3) > div > fieldset > button').click()
+    yangsan_bus_driver.implicitly_wait(0.1)
+
+    # 검색한 버스의 자세히 버튼 클릭.
+    yangsan_bus_driver.find_element(By.CSS_SELECTOR, '#bt_0').click()
+    time.sleep(0.1)
+
+    # html의 page_source를 가져와 BeautifulSoup를 돌릴 수 있게 함.
+    html = yangsan_bus_driver.page_source
+
+    # 노선의 전체 정류장 찾기. (BeautifulSoup 사용.)
+    yangsan_soup = BeautifulSoup(html, 'html.parser')
+    yangsan_info = yangsan_soup.select('#ars_row > td:nth-child(1) > a')
+
+    yangsan_bus_dict = dict()
+    yangsan_bus_list = list()
+    yangsan_index = 1
+    yangsan_busNum = False # 버스를 찾았는지 확인.
+
+    # (버스 정류장 인덱스 번호), (현재 정류장 이름), (다음 정류장 이름) 순으로 리스트에 추가.
+    for index, value in enumerate(yangsan_info):
+        if yangsan_busStop_input in yangsan_info[index].text:
+            try:
+                embed.add_field(name=yangsan_index, value=f"{yangsan_info[index].text} | ({yangsan_info[index + 1].text} 방면)", inline=False)
+                yangsan_bus_list = [index + 2, yangsan_info[index].text, yangsan_info[index + 2].text]
+                yangsan_bus_dict.setdefault(yangsan_index, yangsan_bus_list)
+                yangsan_bus_list = list()
+                yangsan_index += 1
+                yangsan_busNum = True
+            except:
+                # 마지막 정류소에서는 '다음 정류장 : 없음'을 출력
+                embed.add_field(name=yangsan_index, value=f"{yangsan_info[index].text} | 없음", inline=False)
+                yangsan_bus_list = [index + 2, yangsan_info[index].text, '없음']
+                yangsan_bus_dict.setdefault(yangsan_index, yangsan_bus_list)
+                yangsan_bus_list = list()
+                yangsan_index += 1
+                yangsan_busNum = True
+    
+    # 버스가 있었으면,
+    if yangsan_busNum == True:
+        await ctx.channel.send(embed=embed)
+
+        # 정류장 (정류장 번호) : 명령어로 버스의 실시간 정류장 도착 정보 찾기.
+        @bot.command()
+        async def 정류장(ctx, yangsan_busStopId):
+            embed_2=discord.Embed(title="찾으시는 정류장의 정보예요!", timestamp=datetime.datetime.now(pytz.timezone('UTC')))
+
+            # 고른 버스 정류장의 인덱스 번호를 찾음.
+            yangsan_target_key = list(yangsan_bus_dict.keys())[int(yangsan_busStopId) - 1]
+            yangsan_bus_index = yangsan_bus_dict.get(yangsan_target_key)[0]
+            yangsan_bus_stop = yangsan_bus_dict.get(yangsan_target_key)[1]
+            yangsan_next_bus_stop = yangsan_bus_dict.get(yangsan_target_key)[2]
+            
+            # 고른 버스 정류장을 클릭.
+            yangsan_bus_driver.find_element(By.XPATH, f'/html/body/div/div[2]/div[1]/div[3]/div[3]/ul/li/div[2]/div/table/tbody/tr[{yangsan_bus_index}]/td[1]/a').click()
+        
+            # 클릭한 뒤 나오는 테이블에서 지나다니는 버스들을 찾음.
+            yangsan_bus_body = yangsan_bus_driver.find_element(By.XPATH, '//*[@id="arrive_info"]/div/table')
+            yangsan_bus_rows = yangsan_bus_body.find_elements(By.TAG_NAME, 'td')
+            yangsan_select_busNum = False
+
+            # 원하는 번호의 버스 정보 입력.
+            for index, value in enumerate(yangsan_bus_rows):
+                if str(yangsan_busNo_input) == yangsan_bus_rows[index].text:
+                    embed_2.add_field(name="찾는 버스 정류장 이름",value=f"{yangsan_bus_stop}", inline=False)
+                    embed_2.add_field(name="다음 버스 정류장 이름",value=f"{yangsan_next_bus_stop}", inline=False)
+                    embed_2.add_field(name="버스 번호", value=f"{yangsan_bus_rows[index].text}", inline=False)
+                    embed_2.add_field(name="버스 번호판", value=f"{yangsan_bus_rows[index + 1].text}", inline=False)
+                    embed_2.add_field(name="도착 예정 시간", value=f"{yangsan_bus_rows[index + 4].text}", inline=False)
+                    embed_2.add_field(name="남은 정류장 수", value=f"{yangsan_bus_rows[index + 3].text}", inline=False)
+                    embed_2.add_field(name="방향", value=f"{yangsan_bus_rows[index + 5].text}", inline=False)
+                    yangsan_select_busNum += 1
+                    
+            # 번호의 버스가 다니는 시간대이면,    
+            if yangsan_select_busNum == True:
+                await ctx.channel.send(embed=embed_2)
+                
+            # 버스가 다니지 않는 시간대라면,
+            else:
+                await ctx.channel.send('버스가 다니지 않는 시간인 것 같아요...')
+                    
+            # chrome driver 종료. (창 끄기.)
+            yangsan_bus_driver.quit()
+
+            # 정류장 명령어 삭제.
+            bot.remove_command('정류장')
+    # 버스가 없으면.
+    else:
+        await ctx.channel.send('!양산버스 (버스 번호) (정류장) 명령어를 잘못 입력한 것 같아요...')
+
+        # chrome driver 종료. (창 끄기.)
+        yangsan_bus_driver.quit()
+    
+    
+
+@양산버스.error
+async def 양산버스_error(ctx, error):
+    await ctx.channel.send("!양산버스 (버스 번호) (정류장) 명령어를 잘못 입력한 것 같아요...")
+    bot.remove_command('정류장')
+    
+    # chrome driver 종료. (창 끄기.)
+    yangsan_bus_driver.quit()
 
 
 
